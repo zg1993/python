@@ -1,4 +1,6 @@
 #sql command conflict
+dev modify
+
 
 drop database if exists awesome;
 
