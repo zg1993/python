@@ -1,5 +1,5 @@
 #sql command conflict
-dev modify
+dev modify2
 
 
 drop database if exists awesome;
