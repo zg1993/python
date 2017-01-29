@@ -2,6 +2,7 @@
 dev modify2
 dev commit
 no --ff
+debug
 
 
 drop database if exists awesome;
