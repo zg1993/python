@@ -1,5 +1,7 @@
 #sql command conflict
 dev modify2
+dev commit
+no --ff
 
 
 drop database if exists awesome;
