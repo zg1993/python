@@ -1,5 +1,5 @@
-#sql command
-conflict
+#sql command conflict
+
 drop database if exists awesome;
 
 create database test_orm;
