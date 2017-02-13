@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 #-*-conding: utf-8-*-
 
-from functools import partial #偏函数
+from functools import partial, wraps #偏函数
 import inspect
+import asyncio
+import logging
+from aiohttp import web
+
+from apis import APIError
+
+logging.basicConfig(level = logging.INFO)
 
 
 def request(path, *, method):
 	def decorator(func):
-		@functools.warps(func)
+		@wraps(func)
 		def warpper(*arg, **kw):
 			return func(*arg, **kw)
-		warpper.__rout__ = path
+		warpper.__route__ = path
 		warpper.__method__ = method
 		return warpper
 	return decorator
@@ -24,10 +31,10 @@ post = partial(request, method = 'Post')
 # POSITIONAL_ONLY		只能是位置参数 （几乎用不到）
 # POSITIONAL_OR_KEYWORD	可以是位置参数也可以是关键字参数
 # VAR_POSITIONAL			相当于是 *args
-# KEYWORD_ONLY			关键字参数且提供了key
+# KEYWORD_ONLY			关键字参数且提供了key(命名关键字参数)
 # VAR_KEYWORD			相当于是 **kw
 #1、获取函数默认值为空的命名关键字参数（没有默认值所以参数一定要传，最后用于检查参数的缺失）
-#2、获取命名关键字参数（在没有关键字参数时，不能传多余的参数（有命名关键字时可以多传参数），用于去除kw中多余的参数）
+#2、获取命名关键字参数（在没有关键字参数时，不能传多余的参数，用于去除kw中多余的参数）
 #3、判断函数是否有命名关键字参数
 #4、判断函数是否有关键字参数
 #5、判断函数是否有请求request参数（此处规定request参数必须写在POSITIONAL_OR_KEYWORD参数的最后一个）
@@ -92,9 +99,11 @@ def has_request_arg(fn):
 		if name == 'request':
 			found == True
 			continue
-		if found and (param.kind != inspect.Parameter.VAR_POSITIONAL and param.kind != inspect.Parameter.KEYWORD_ONLY and param.kind != inspect.Parameter.VAR_KEYWORD):
+		#当found为真，且下一个参数类型
+		#Pay attention!!!
+		if found and (param.kind in (param.POSITIONAL_OR_KEYWORD, param.POSITIONAL_OR_KEYWORD)):
 			raise ValueError('request parameter must be the last parameter in function:%s%s'%(fn__name__, str(sig)))
-		return found
+	return found
 
 
 '''
@@ -118,14 +127,80 @@ class RequestHandler(object):
 
 	#RequestHandler 类由于定义了__call__()方法，因此可以将其实例视为一个函数
 	async def __call__(self, request):
-		if request.__data__ is None:
-			print(11)
-			pass
+		#判断URL函数是否有参数
+		logging.info('__call__')
+		kw = None
+		#
+		if self._has_only_kw or self._has_var_kw:
+			kw = getattr(request, '__data__', None)
+		if kw is None:
+			kw = dict(**request.match_info)
+		else:
+			#只有命名关键字时（不能多传参数），选出需要的参数
+			if not self._has_var_kw and self._all_kw_args:
+				copy = dict()
+				for name in self._all_kw_args:
+					if name in kw:
+						copy[name] = kw[name]
+				kw = copy
+			for k, v in request.match_info.items():
+				if k in kw:
+					logging.warning('Duplicate arg name in named arg and kw args: %s'%k)
+					kw[k] = v
+		if self._has_request_kw:
+			kw['request'] = request
+		#检查参数是否有遗漏
+		if self._required_kw_args:
+			for name in self._required_kw_args:
+				if not name in kw:
+					return web.HTTPBadRequest()
+		logging.info("call with args: %s"%str(kw))
+
+		try:
+			r = await self._func(**kw)
+			return r
+		except APIError as e:
+			return dict(error = e.error, data = e.data, message = e.message)
 
 
+
+def add_static(app):
+	path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+	app.router.add_static('/static/', path)
+	logging.info('add static %s => %s'%('/static/', path))
 
 
 def add_route(app, fn):
-	pass
+	method = getattr(fn, "__method__", None)
+	path = getattr(fn, "__route__", None)
+	if method is None or path is None:
+		raise ValueError("@get or @post not defined in %s"% str(fn))
+	#Pay Attention!!!
+	if not asyncio.iscoroutinefunction(fn) and not inspect.isgeneratorfunction(fn):
+		fn = asyncio.coroutine(fn)
+	logging.info("add route %s %s => %s(%s)"%(method, path, fn.__name__, ','.join(inspect.signature(fn).parameters.keys())))
+	app.router.add_route(method, path, RequestHandler(app, fn))
+	#app.router.add_route(method, path, fn) 
 
-RequestHandler(2,add_route)(request)
+
+def add_routes(app, module_name):
+	n = module_name.rfind('.')
+	#pay attention globals()\locals()
+	if n == (-1):
+		mod = __import__(module_name, globals(), locals())
+	else:
+		name = module_name[n+1:]
+		mod = getattr(__import__(module_name[:n], globals(), locals(), [name]), name)
+	for attr in dir(mod):
+		if attr.startswith('_'):
+			continue
+		fn = getattr(mod, attr)
+		if callable(fn):
+			method = getattr(fn, '__method__', None)
+			path = getattr(fn, '__route__', None)
+			if method and path:
+				add_route(app, fn)
+
+def hello():
+	pass
+RequestHandler(1, hello)(1)

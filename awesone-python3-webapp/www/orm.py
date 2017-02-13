@@ -21,7 +21,7 @@ def mylog(func):
 
 
 #创建连接池，方便每个http请求都可以从连接池中直接获取数据库连接
-@mylog
+#@mylog
 async def create_pool(loop, **kw):
 	logging.info('create database connection pool...')
 	global __pool
@@ -42,7 +42,7 @@ async def create_pool(loop, **kw):
 
 
 #mysql查找
-@mylog
+#@mylog
 async def select(sql, args, size = None):
 	#print(sql, args)
 	global __pool
@@ -68,7 +68,7 @@ async def select(sql, args, size = None):
 
 #Insert, Update, Delete
 #mysql 插入 修改 删除 这三个sql语句的执行需要相同的参数，cur对象都是通过rowcout返回结果数
-@mylog
+#@mylog
 async def execute(sql, args):
 	#logging.info(sql, args)
 	async with __pool.get() as conn:
@@ -168,15 +168,15 @@ def create_placeholder(num):
 
 #创建元类
 class ModelMetaclass(type):
-	@mylog
+	#@mylog
 	def __new__(cls, name, bases, attrs):
 		#排除对Model类的修改
 		#Modele的子类创建时也会隐式的继承metaclass(也是通过元类创建)
 		if name == 'Model':
 			return type.__new__(cls, name, bases, attrs)
-		logging.info('create class %s to ModelMetaclass' %name)
+		#logging.info('create class %s to ModelMetaclass' %name)
 		tableName = attrs.get('__table__', None) or name
-		logging.info('tableName: %s' %tableName)
+		#logging.info('tableName: %s' %tableName)
 		#获取所有的field和主键名
 		mappings = dict() #保存类和属性的映射关系
 		fields = [] #除主键外的属性名
@@ -247,7 +247,7 @@ class Model(dict, metaclass = ModelMetaclass):
 	#根据键值查找
 	#??用法
 	@classmethod
-	@mylog
+	#@mylog
 	async def find(cls, pk):
 		#print(pk)
 		rs = await select("%s where `%s`=?"%(cls.__select__, cls.__primary_key__), [pk], 1)
@@ -259,7 +259,7 @@ class Model(dict, metaclass = ModelMetaclass):
 		return cls(**rs[0])
 
 
-	@mylog
+	#@mylog
 	async def save(self):
 		args = list(map(self.getValueOrDefault, self.__fields__))
 		args.append(self.getValueOrDefault(self.__primary_key__))
@@ -271,8 +271,9 @@ class Model(dict, metaclass = ModelMetaclass):
 
 
 	@classmethod
-	@mylog
+	#@mylog
 	async def findAll(cls, where = None, args = None, **kw):
+		logging.info('findAll')
 		sql = [cls.__select__]
 		if where:
 			sql.append('where')
@@ -298,7 +299,7 @@ class Model(dict, metaclass = ModelMetaclass):
 		return [cls(**r) for r in rs]
 
 	@classmethod
-	@mylog
+	#@mylog
 	async def findNum(cls, selectField, where = None, args = None):
 		sql = ['select %s _num_ from `%s`'%(selectField, cls.__table__)]
 		if where:

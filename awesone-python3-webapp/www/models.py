@@ -6,7 +6,11 @@ import uuid, time
 
 from orm import Model, StringField, FloatField, TextField, BooleanField
 
+import logging
 
+
+
+#logging.basicConfig(level = logging.INFO)#打印logging.info()的内容注释后不显示
 
 #generate ID
 def next_id():
