@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://E:/WorkSpace/DjangoProject/Tango/.idea/Tango.iml" filepath="E:/WorkSpace/DjangoProject/Tango/.idea/Tango.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/zyl.iml" filepath="$PROJECT_DIR$/.idea/zyl.iml" />
     </modules>
   </component>

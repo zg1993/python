@@ -164,42 +164,69 @@ class RequestHandler(object):
 
 
 
+# 向app中添加静态文件目录
 def add_static(app):
-	path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
-	app.router.add_static('/static/', path)
-	logging.info('add static %s => %s'%('/static/', path))
+    # os.path.abspath(__file__), 返回当前脚本的绝对路径(包括文件名)
+    # os.path.dirname(), 去掉文件名,返回目录路径
+    # os.path.join(), 将分离的各部分组合成一个路径名
+    # 因此以下操作就是将本文件同目录下的static目录(即www/static/)加入到应用的路由管理器中
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+    # app = web.Application(loop=loop)这是在app.py模块中定义的
+    app.router.add_static('/static/', path)
+    logging.info('add static %s => %s' % ('/static/', path))
 
-
+# 把请求处理函数注册到app
+# 处理将针对http method 和path进行
+# 下面的add_routes函数的一部分
 def add_route(app, fn):
-	method = getattr(fn, "__method__", None)
-	path = getattr(fn, "__route__", None)
-	if method is None or path is None:
-		raise ValueError("@get or @post not defined in %s"% str(fn))
-	#Pay Attention!!!
-	if not asyncio.iscoroutinefunction(fn) and not inspect.isgeneratorfunction(fn):
-		fn = asyncio.coroutine(fn)
-	logging.info("add route %s %s => %s(%s)"%(method, path, fn.__name__, ','.join(inspect.signature(fn).parameters.keys())))
-	app.router.add_route(method, path, RequestHandler(app, fn))
-	#app.router.add_route(method, path, fn) 
+    method = getattr(fn, '__method__', None)  # 获取fn.__method__属性,若不存在将返回None
+    path = getattr(fn, '__route__', None)  # 获取fn.__route__属性,若不存在将返回None
+    if path is None or method is None:  # 如果两个属性其中之一没有值，那就会报错
+        raise ValueError('@get or @post not defined in %s.' % str(fn))
+    # 如果函数fn是不是一个协程或者生成器，就把这个函数编程协程
+    if not asyncio.iscoroutinefunction(fn) and not inspect.isgeneratorfunction(fn):
+        fn = asyncio.coroutine(fn)
+    logging.info('add route %s %s => %s(%s)' % (method, path, fn.__name__, ', '.join(inspect.signature(fn).parameters.keys())))
+    app.router.add_route(method, path, RequestHandler(app, fn))  # 注册request handler
 
-
+   
+# 将handlers模块中所有请求处理函数提取出来交给add_route自动去处理
 def add_routes(app, module_name):
-	n = module_name.rfind('.')
-	#pay attention globals()\locals()
-	if n == (-1):
-		mod = __import__(module_name, globals(), locals())
-	else:
-		name = module_name[n+1:]
-		mod = getattr(__import__(module_name[:n], globals(), locals(), [name]), name)
-	for attr in dir(mod):
-		if attr.startswith('_'):
-			continue
-		fn = getattr(mod, attr)
-		if callable(fn):
-			method = getattr(fn, '__method__', None)
-			path = getattr(fn, '__route__', None)
-			if method and path:
-				add_route(app, fn)
+    # 如果handlers模块在当前目录下，传入的module_name就是handlers
+    # 如果handlers模块在handler目录下没那传入的module_name就是handler.handlers
+
+    # Python rfind() 返回字符串最后一次出现的位置，如果没有匹配项则返回-1。
+    # str.rfind(str, beg=0 end=len(string))
+    # str -- 查找的字符串
+    # beg -- 开始查找的位置，默认为0
+    # end -- 结束查找位置，默认为字符串的长度。
+    # 返回字符串最后一次出现的位置(索引数），如果没有匹配项则返回-1。
+    n = module_name.rfind('.')
+    if n == (-1):
+        # __import__(module_name[, globals[, locals[, fromlist]]]) 可选参数默认为globals(),locals(),[]
+        # 例如>>> mod = __import__("test", globals(), locals())
+        #     >>> mod
+        #     <module 'test' from 'C:\\Users\\shabi\\test.py'>
+        mod = __import__(module_name, globals(), locals())
+    else:
+        name = module_name[n+1:]  # 当module_name为handler.handlers时，[n+1:]就是取.后面的部分，也就是handlers
+        # 下面的语句相当于执行了两个步骤，传入的module_name是aaa.bbb
+        # 第一个步骤获取aaa模块的信息
+        # 第二个步骤通过getattr()方法取得子模块名, 如aaa.bbb
+        mod = getattr(__import__(module_name[:n], globals(), locals(), [name]), name)
+    # dir()不带参数时，返回当前范围内的变量、方法和定义的类型列表；带参数时，返回参数的属性、方法列表。如果参数包含方法__dir__()，该方法将被调用。如果参数不包含__dir__()，该方法将最大限度地收集参数信息。
+    for attr in dir(mod):
+        if attr.startswith('_'):
+            continue
+        # 排除私有属性之后，用getattr调用handlers模块离得里的属性（方法）
+        # fn就是handler里的函数
+        fn = getattr(mod, attr)
+        if callable(fn):  # 查看提取出来的属性是不是函数
+            method = getattr(fn, '__method__', None)
+            path = getattr(fn, '__route__', None)
+            # 如果是函数，再判断是否有__method__和__route__属性，如果存在则使用app_route函数注册
+            if method and path:
+                add_route(app, fn)
 
 def hello():
 	pass
