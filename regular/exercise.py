@@ -15,6 +15,7 @@ def fun1_advantage(string):
 
 
 
+
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print "Usage: ", sys.argv[0], " str"
